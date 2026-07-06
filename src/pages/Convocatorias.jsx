@@ -1,29 +1,24 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { supabase } from '../supabase'; // Importamos el puente que creamos para la base de datos
+import { supabase } from '../supabase';
 
 export default function Convocatorias() {
-  // Estados para guardar los datos y saber si está cargando y asi
   const [convocatorias, setConvocatorias] = useState([]);
   const [cargando, setCargando] = useState(true);
 
-  // Esto se ejecuta automáticamente al entrar a la pantalla
   useEffect(() => {
     obtenerConvocatorias();
   }, []);
 
   const obtenerConvocatorias = async () => {
     try {
-      // Pedimos todas las convocatorias ordenadas por la más reciente
       const { data, error } = await supabase
         .from('convocatorias')
         .select('*')
         .order('fecha_publicacion', { ascending: false });
 
       if (error) throw error;
-      
-      // Guardamos los datos en el estado de React
-      setConvocatorias(data);
+      setConvocatorias(data || []);
     } catch (error) {
       console.error('Error al obtener convocatorias:', error.message);
     } finally {
@@ -42,10 +37,15 @@ export default function Convocatorias() {
           <h2 className="font-display-lg text-[32px] font-bold text-on-surface">Gestión de Convocatorias</h2>
           <p className="font-body-md text-[14px] text-on-surface-variant mt-1">Administre las vacantes activas y el historial de procesos de selección.</p>
         </div>
-        <button onClick={() => showToast('Nueva vacante creada')} className="flex items-center gap-2 bg-primary text-on-primary px-4 py-2 rounded shadow-sm hover:bg-primary/90 transition-colors cursor-pointer">
+        
+        {/* BOTÓN CONECTADO A LA NUEVA RUTA */}
+        <Link 
+          to="/nueva-convocatoria" 
+          className="flex items-center gap-2 bg-primary text-on-primary px-4 py-2 rounded shadow-sm hover:bg-primary/90 transition-colors cursor-pointer"
+        >
           <span className="material-symbols-outlined text-[18px]">add</span>
           <span className="font-label-md text-[12px] font-bold">Nueva Vacante</span>
-        </button>
+        </Link>
       </div>
 
       {/* Filtros */}
@@ -77,18 +77,13 @@ export default function Convocatorias() {
           <tbody className="divide-y divide-outline-variant/20">
             {cargando ? (
               <tr>
-                <td colSpan="5" className="px-4 py-8 text-center text-on-surface-variant">
-                  Cargando datos desde Supabase...
-                </td>
+                <td colSpan="5" className="px-4 py-8 text-center text-on-surface-variant">Cargando datos desde Supabase...</td>
               </tr>
             ) : convocatorias.length === 0 ? (
               <tr>
-                <td colSpan="5" className="px-4 py-8 text-center text-on-surface-variant">
-                  No hay convocatorias registradas.
-                </td>
+                <td colSpan="5" className="px-4 py-8 text-center text-on-surface-variant">No hay convocatorias registradas.</td>
               </tr>
             ) : (
-              // Aquí iteramos sobre los datos reales de la base de datos
               convocatorias.map((conv) => (
                 <tr key={conv.id} className="hover:bg-inverse-on-surface/50 transition-colors h-[56px] group">
                   <td className="px-4 py-2 font-data-mono text-[14px] text-on-surface-variant">{conv.codigo}</td>
@@ -106,7 +101,7 @@ export default function Convocatorias() {
                   <td className="px-4 py-2 text-right">
                     <div className="flex justify-end gap-2">
                       <Link to="/postulantes" title="Ver Postulantes" className="text-on-surface-variant hover:text-primary"><span className="material-symbols-outlined text-[20px]">group</span></Link>
-                      <button onClick={() => showToast('Convocatoria editada')} title="Editar" className="text-on-surface-variant hover:text-primary"><span className="material-symbols-outlined text-[20px]">edit</span></button>
+                      <button onClick={() => showToast('Funcionalidad en desarrollo')} title="Editar" className="text-on-surface-variant hover:text-primary"><span className="material-symbols-outlined text-[20px]">edit</span></button>
                       <button onClick={() => showToast('Convocatoria cerrada')} title="Cerrar" className="text-on-surface-variant hover:text-error"><span className="material-symbols-outlined text-[20px]">block</span></button>
                     </div>
                   </td>

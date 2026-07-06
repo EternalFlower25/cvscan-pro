@@ -8,7 +8,7 @@ import Reportes from './pages/Reportes';
 import Detalle from './pages/Detalle';
 import NuevoPostulante from './pages/NuevoPostulante'; // <-- ESTA IMPORTACIÓN FALTABA
 import Layout from './components/Layout';
-
+import NuevaConvocatoria from './pages/NuevaConvocatoria';
 function App() {
   return (
     <BrowserRouter>
@@ -24,6 +24,7 @@ function App() {
           <Route path="/postulantes" element={<Postulantes />} />
           <Route path="/reportes" element={<Reportes />} />
           <Route path="/nuevo-postulante" element={<NuevoPostulante />} />
+          <Route path="/nueva-convocatoria" element={<NuevaConvocatoria />} />
           <Route path="/detalle/:id" element={<Detalle />} />
         </Route>
       </Routes>
