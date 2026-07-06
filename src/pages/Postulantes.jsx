@@ -35,20 +35,26 @@ export default function Postulantes() {
     if (!subiendo) fileInputRef.current.click();
   };
 
-  // --- EL CEREBRO DE TU APLICACIÓN ---
+  // --- EL NUEVO CEREBRO AVANZADO DE TU APLICACIÓN ---
   const procesarConIA = async (base64Data) => {
     try {
       const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
-      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      // Usamos el modelo que descubriste que funciona en tu cuenta
+      const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
 
-      // Instrucciones estrictas para que la IA actúe como reclutador
-      const prompt = `Eres un sistema experto de Recursos Humanos. Analiza este CV en formato PDF. 
-      Extrae la información y devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta, sin formato markdown ni texto extra:
+      // INSTRUCCIONES ESTRICTAS Y DETALLADAS PARA LA IA
+      const prompt = `Eres un reclutador experto y analista de Recursos Humanos. Analiza exhaustivamente este CV en formato PDF. 
+      Devuelve la respuesta en formato JSON puro, sin comillas invertidas, sin markdown y sin la palabra "json".
+      El objeto JSON DEBE tener exactamente esta estructura:
       {
         "nombre_completo": "Nombre y apellidos del candidato",
-        "grado": "Ej: Bachiller, Licenciado, Magister, Técnico, etc. (El más alto que encuentres)",
-        "compatibilidad": un número entero del 0 al 100 evaluando qué tan completo y profesional es el CV,
-        "resumen": "Un resumen profesional de máximo 2 líneas",
+        "correo": "El correo electrónico encontrado (o 'No especificado')",
+        "telefono": "El número de teléfono encontrado (o 'No especificado')",
+        "grado": "Título profesional más alto (Ej: Licenciada en Contabilidad)",
+        "anios_experiencia": un número entero con la suma total aproximada de años de experiencia laboral,
+        "compatibilidad": un número entero del 0 al 100 evaluando qué tan fuerte es el perfil,
+        "resumen": "Un resumen profesional directo de 2 líneas",
+        "analisis_detallado": "Un análisis profundo de 2 o 3 párrafos. Explica detalladamente: 1) Su experiencia laboral (dónde trabajó y cuánto tiempo), 2) Justificación del porcentaje de compatibilidad, y 3) Por qué recomiendas (o no) a este candidato para avanzar en el proceso.",
         "estado": "Apto" (si compatibilidad >= 80) o "Observado" (si es menor a 80)
       }`;
 
@@ -62,7 +68,6 @@ export default function Postulantes() {
         }
       ]);
 
-      // Limpiamos la respuesta para asegurarnos de que sea un JSON puro
       let textoRespuesta = result.response.text();
       textoRespuesta = textoRespuesta.replace(/```json/g, '').replace(/```/g, '').trim();
       
@@ -85,21 +90,17 @@ export default function Postulantes() {
     try {
       setSubiendo(true);
       
-      // 1. Leer el PDF
       setEstadoIA('Leyendo PDF...');
       const reader = new FileReader();
       reader.readAsDataURL(file);
       
       reader.onload = async () => {
         try {
-          // Extraemos el código del archivo
           const base64Data = reader.result.split(',')[1];
           
-          // 2. Extraer datos con IA
-          setEstadoIA('IA Analizando Perfil...');
+          setEstadoIA('IA Analizando Perfil a Profundidad...');
           const datosIA = await procesarConIA(base64Data);
 
-          // 3. Subir el PDF físico a tu base de datos
           setEstadoIA('Guardando en la Nube...');
           const filePath = `cv_docs/${Math.random().toString(36).substring(7)}-${file.name}`;
           const { error: uploadError } = await supabase.storage.from('cvx').upload(filePath, file);
@@ -107,22 +108,27 @@ export default function Postulantes() {
 
           const { data: urlData } = supabase.storage.from('cvx').getPublicUrl(filePath);
 
-          // 4. Guardar los datos extraídos en la tabla
           setEstadoIA('Registrando Postulante...');
+          
+          // Formateamos el resumen y el análisis para guardarlos juntos en tu columna existente
+          const analisisCompleto = `RESUMEN EJECUTIVO:\n${datosIA.resumen}\n\nANÁLISIS PROFUNDO DE LA IA:\n${datosIA.analisis_detallado}`;
+
           const { error: insertError } = await supabase.from('postulantes').insert([{
-            convocatoria_id: 1, // ID fijo por ahora
+            convocatoria_id: 1, // Nota: Más adelante haremos que elijas a qué puesto postula
             nombre_completo: datosIA.nombre_completo || 'Candidato Desconocido',
-            correo: 'extraido-por-ia@email.com', 
+            correo: datosIA.correo || 'No especificado',
+            telefono: datosIA.telefono || 'No especificado',
+            anios_experiencia: datosIA.anios_experiencia || 0,
             compatibilidad: datosIA.compatibilidad || 70,
             grado: datosIA.grado || 'No especificado',
-            resumen_ia: datosIA.resumen || 'Sin resumen disponible.',
+            resumen_ia: analisisCompleto,
             estado: datosIA.estado || 'Observado',
             cv_url: urlData.publicUrl
           }]);
 
           if (insertError) throw insertError;
 
-          alert('¡Candidato analizado por IA y registrado con éxito!');
+          alert('¡Candidato analizado profundamente por IA y registrado con éxito!');
           obtenerPostulantes();
           
         } catch (err) {
@@ -158,7 +164,6 @@ export default function Postulantes() {
       </div>
 
       <div className="grid grid-cols-12 gap-gutter">
-        {/* Zona de Carga Inteligente */}
         <div className="col-span-12 xl:col-span-3 h-full">
           <input type="file" accept=".pdf" ref={fileInputRef} onChange={subirCV} className="hidden" />
           <div 
@@ -175,12 +180,11 @@ export default function Postulantes() {
             </div>
             <h3 className="font-label-md text-[12px] font-bold text-on-surface mb-2">{estadoIA}</h3>
             <p className="font-body-sm text-[13px] text-outline px-4">
-              {subiendo ? 'La Inteligencia Artificial está trabajando...' : 'Sube un PDF y la IA extraerá los datos automáticamente.'}
+              {subiendo ? 'La Inteligencia Artificial está analizando la experiencia...' : 'Sube un PDF y la IA extraerá los datos automáticamente.'}
             </p>
           </div>
         </div>
 
-        {/* Tabla Dinámica */}
         <div className="col-span-12 xl:col-span-9 flex flex-col gap-stack-md">
           <div className="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm overflow-hidden">
             <table className="w-full text-left border-collapse">
