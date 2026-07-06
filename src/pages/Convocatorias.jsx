@@ -38,7 +38,6 @@ export default function Convocatorias() {
           <p className="font-body-md text-[14px] text-on-surface-variant mt-1">Administre las vacantes activas y el historial de procesos de selección.</p>
         </div>
         
-        {/* BOTÓN CONECTADO A LA NUEVA RUTA */}
         <Link 
           to="/nueva-convocatoria" 
           className="flex items-center gap-2 bg-primary text-on-primary px-4 py-2 rounded shadow-sm hover:bg-primary/90 transition-colors cursor-pointer"
