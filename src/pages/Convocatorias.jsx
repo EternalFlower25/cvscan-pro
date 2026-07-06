@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { supabase } from '../supabase'; // Importamos el puente que creamos
+import { supabase } from '../supabase'; // Importamos el puente que creamos para la base de datos
 
 export default function Convocatorias() {
-  // Estados para guardar los datos y saber si está cargando
+  // Estados para guardar los datos y saber si está cargando y asi
   const [convocatorias, setConvocatorias] = useState([]);
   const [cargando, setCargando] = useState(true);
 
-  // Esto se ejecuta automáticamente cuando entras a la pantalla
+  // Esto se ejecuta automáticamente al entrar a la pantalla
   useEffect(() => {
     obtenerConvocatorias();
   }, []);

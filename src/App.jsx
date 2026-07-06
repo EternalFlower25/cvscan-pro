@@ -6,6 +6,7 @@ import Convocatorias from './pages/Convocatorias';
 import Postulantes from './pages/Postulantes';
 import Reportes from './pages/Reportes';
 import Detalle from './pages/Detalle';
+import NuevoPostulante from './pages/NuevoPostulante'; // <-- ESTA IMPORTACIÓN FALTABA
 import Layout from './components/Layout';
 
 function App() {
@@ -22,7 +23,7 @@ function App() {
           <Route path="/convocatorias" element={<Convocatorias />} />
           <Route path="/postulantes" element={<Postulantes />} />
           <Route path="/reportes" element={<Reportes />} />
-          {/* Aquí está la ruta corregida para aceptar el ID del postulante */}
+          <Route path="/nuevo-postulante" element={<NuevoPostulante />} />
           <Route path="/detalle/:id" element={<Detalle />} />
         </Route>
       </Routes>
