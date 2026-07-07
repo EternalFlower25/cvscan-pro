@@ -5,8 +5,8 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export default function Postulantes() {
   const [postulantes, setPostulantes] = useState([]);
-  const [convocatorias, setConvocatorias] = useState([]); // Nueva variable para las vacantes
-  const [convocatoriaSeleccionada, setConvocatoriaSeleccionada] = useState(''); // Guarda la opción elegida
+  const [convocatorias, setConvocatorias] = useState([]); 
+  const [convocatoriaSeleccionada, setConvocatoriaSeleccionada] = useState(''); 
   const [cargando, setCargando] = useState(true);
   const [subiendo, setSubiendo] = useState(false);
   const [estadoIA, setEstadoIA] = useState('Carga Masiva de CVs');
@@ -15,7 +15,7 @@ export default function Postulantes() {
 
   useEffect(() => {
     obtenerPostulantes();
-    obtenerConvocatorias(); // Cargamos las vacantes al abrir la página
+    obtenerConvocatorias(); 
   }, []);
 
   const obtenerConvocatorias = async () => {
@@ -46,7 +46,6 @@ export default function Postulantes() {
 
   const handleCargaClick = () => {
     if (!subiendo) {
-      // Bloqueamos el clic si no ha elegido una vacante
       if (!convocatoriaSeleccionada) {
         alert('⚠️ Por favor, selecciona una vacante en el menú antes de subir los CVs.');
         return;
@@ -89,14 +88,12 @@ export default function Postulantes() {
     }
   };
 
-  // NUEVA FUNCIÓN PARA MÚLTIPLES ARCHIVOS
   const subirMultiplesCVs = async (event) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
 
     setSubiendo(true);
 
-    // Bucle para procesar 1 por 1 y no saturar a la IA
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
 
@@ -135,7 +132,7 @@ export default function Postulantes() {
               `;
 
               const { error: insertError } = await supabase.from('postulantes').insert([{
-                convocatoria_id: convocatoriaSeleccionada, // AHORA USA LA VACANTE ELEGIDA EN EL MENÚ
+                convocatoria_id: convocatoriaSeleccionada, 
                 nombre_completo: datosIA.nombre_completo || 'Candidato Desconocido',
                 correo: datosIA.correo || 'No especificado',
                 telefono: datosIA.telefono || 'No especificado',
@@ -148,11 +145,11 @@ export default function Postulantes() {
               }]);
 
               if (insertError) throw insertError;
-              resolve(); // Termina este CV y pasa al siguiente
+              resolve(); 
               
             } catch (err) {
               console.error(`Error con ${file.name}:`, err);
-              resolve(); // Resuelve incluso si hay error para no detener la cola
+              resolve(); 
             }
           };
         });
@@ -161,13 +158,22 @@ export default function Postulantes() {
       }
     }
 
-    // Una vez que termina el bucle de todos los archivos:
     setSubiendo(false);
     setEstadoIA('Carga Masiva de CVs');
     event.target.value = null; 
     obtenerPostulantes();
     alert(`¡Se procesaron los ${files.length} documentos con éxito!`);
   };
+
+  // --- NUEVA LÓGICA: AGRUPAR POSTULANTES POR VACANTE ---
+  const postulantesAgrupados = postulantes.reduce((grupos, postulante) => {
+    const puesto = postulante.convocatorias?.puesto || 'Sin Vacante Asignada';
+    if (!grupos[puesto]) {
+      grupos[puesto] = [];
+    }
+    grupos[puesto].push(postulante);
+    return grupos;
+  }, {});
 
   return (
     <div className="max-w-[1400px] mx-auto space-y-stack-lg">
@@ -186,8 +192,6 @@ export default function Postulantes() {
       <div className="grid grid-cols-12 gap-gutter">
         {/* PANEL IZQUIERDO: SELECCIÓN Y CARGA */}
         <div className="col-span-12 xl:col-span-3 h-full flex flex-col gap-4">
-          
-          {/* Nuevo Menú Desplegable */}
           <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 shadow-sm">
             <label className="block font-label-md text-[12px] font-bold text-primary uppercase tracking-wider mb-2">
               1. Asignar a Vacante
@@ -205,7 +209,6 @@ export default function Postulantes() {
             </select>
           </div>
 
-          {/* Área de Carga (Ahora acepta múltiples archivos) */}
           <input type="file" accept=".pdf" multiple ref={fileInputRef} onChange={subirMultiplesCVs} className="hidden" />
           <div 
             onClick={handleCargaClick} 
@@ -228,55 +231,69 @@ export default function Postulantes() {
           </div>
         </div>
 
-        {/* TABLA DERECHA */}
-        <div className="col-span-12 xl:col-span-9 flex flex-col gap-stack-md">
-          <div className="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm overflow-hidden">
-            <table className="w-full text-left border-collapse">
-              <thead className="bg-surface-container-low border-b border-outline-variant/50">
-                <tr>
-                  <th className="py-3 px-4 font-label-md text-[12px] font-bold text-on-surface-variant uppercase">Candidato</th>
-                  <th className="py-3 px-4 font-label-md text-[12px] font-bold text-on-surface-variant uppercase">Puesto</th>
-                  <th className="py-3 px-4 font-label-md text-[12px] font-bold text-on-surface-variant uppercase">Compatibilidad</th>
-                  <th className="py-3 px-4 font-label-md text-[12px] font-bold text-on-surface-variant uppercase">Estado</th>
-                  <th className="py-3 px-4 font-label-md text-[12px] font-bold text-on-surface-variant uppercase text-right">Acción</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-outline-variant/30">
-                {cargando ? (
-                  <tr><td colSpan="5" className="text-center py-8">Cargando...</td></tr>
-                ) : postulantes.length === 0 ? (
-                  <tr><td colSpan="5" className="text-center py-8">No hay postulantes registrados.</td></tr>
-                ) : (
-                  postulantes.map((post) => (
-                    <tr key={post.id} className="hover:bg-surface-container-high transition-colors bg-surface-container-lowest">
-                      <td className="py-2 px-4 font-data-mono font-semibold text-[14px]">{post.nombre_completo}</td>
-                      <td className="py-2 px-4 font-body-sm text-[13px]">{post.convocatorias?.puesto || 'No asignado'}</td>
-                      <td className="py-2 px-4 w-44">
-                        <div className="flex items-center gap-2">
-                          <span className="font-data-mono text-[14px] font-bold text-on-surface">{post.compatibilidad}%</span>
-                          <div className="flex-1 h-2 bg-surface-container-highest rounded-full overflow-hidden">
-                            <div className="h-full bg-primary" style={{ width: `${post.compatibilidad}%` }}></div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-2 px-4">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold border ${
-                          post.estado === 'Apto' ? 'bg-secondary-container text-on-secondary-fixed-variant border-secondary-fixed' :
-                          post.estado === 'Observado' ? 'bg-surface-variant text-on-surface-variant border-outline-variant' :
-                          'bg-error-container text-on-error-container border-error'
-                        }`}>
-                          {post.estado}
-                        </span>
-                      </td>
-                      <td className="py-2 px-4 text-right">
-                        <Link to={`/detalle/${post.id}`} className="text-primary hover:text-primary/80 font-label-md text-[12px] font-bold">Ver Detalle</Link>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+        {/* TABLA DERECHA (AHORA DIVIDIDA POR SECCIONES) */}
+        <div className="col-span-12 xl:col-span-9 flex flex-col gap-8">
+          {cargando ? (
+            <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-8 text-center text-on-surface-variant">Cargando postulantes...</div>
+          ) : postulantes.length === 0 ? (
+            <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-8 text-center text-on-surface-variant">No hay postulantes registrados.</div>
+          ) : (
+            // Recorremos cada grupo creado (Vacante -> Lista de candidatos)
+            Object.entries(postulantesAgrupados).map(([puesto, candidatos]) => (
+              <div key={puesto} className="flex flex-col gap-3">
+                
+                {/* Cabecera de la sección (Nombre de la Vacante) */}
+                <div className="flex items-center gap-2 border-b border-outline-variant/50 pb-2">
+                  <span className="material-symbols-outlined text-primary text-[20px]">work</span>
+                  <h3 className="font-headline-sm text-[18px] font-bold text-on-surface">{puesto}</h3>
+                  <span className="bg-surface-container-high text-on-surface-variant px-2.5 py-0.5 rounded-full text-[12px] font-bold ml-2">
+                    {candidatos.length} candidato{candidatos.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+
+                {/* Tabla específica de esta vacante */}
+                <div className="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm overflow-hidden">
+                  <table className="w-full text-left border-collapse">
+                    <thead className="bg-surface-container-low border-b border-outline-variant/50">
+                      <tr>
+                        <th className="py-3 px-4 font-label-md text-[12px] font-bold text-on-surface-variant uppercase">Candidato</th>
+                        <th className="py-3 px-4 font-label-md text-[12px] font-bold text-on-surface-variant uppercase">Compatibilidad</th>
+                        <th className="py-3 px-4 font-label-md text-[12px] font-bold text-on-surface-variant uppercase">Estado</th>
+                        <th className="py-3 px-4 font-label-md text-[12px] font-bold text-on-surface-variant uppercase text-right">Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-outline-variant/30">
+                      {candidatos.map((post) => (
+                        <tr key={post.id} className="hover:bg-surface-container-high transition-colors bg-surface-container-lowest">
+                          <td className="py-2 px-4 font-data-mono font-semibold text-[14px]">{post.nombre_completo}</td>
+                          <td className="py-2 px-4 w-44">
+                            <div className="flex items-center gap-2">
+                              <span className="font-data-mono text-[14px] font-bold text-on-surface">{post.compatibilidad}%</span>
+                              <div className="flex-1 h-2 bg-surface-container-highest rounded-full overflow-hidden">
+                                <div className="h-full bg-primary" style={{ width: `${post.compatibilidad}%` }}></div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-2 px-4">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold border ${
+                              post.estado === 'Apto' ? 'bg-secondary-container text-on-secondary-fixed-variant border-secondary-fixed' :
+                              post.estado === 'Observado' ? 'bg-surface-variant text-on-surface-variant border-outline-variant' :
+                              'bg-error-container text-on-error-container border-error'
+                            }`}>
+                              {post.estado}
+                            </span>
+                          </td>
+                          <td className="py-2 px-4 text-right">
+                            <Link to={`/detalle/${post.id}`} className="text-primary hover:text-primary/80 font-label-md text-[12px] font-bold">Ver Detalle</Link>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>
