@@ -171,7 +171,7 @@ export default function Detalle() {
               <h4 className="font-headline-sm text-[20px] font-bold text-primary">Resumen Profesional Generado por IA</h4>
             </div>
             <p className="font-body-md text-[14px] text-on-surface leading-relaxed">
-              {postulante.resumen_ia}
+              <div dangerouslySetInnerHTML={{ __html: postulante.resumen_ia }} />
             </p>
           </div>
         </div>

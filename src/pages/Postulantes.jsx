@@ -5,6 +5,8 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export default function Postulantes() {
   const [postulantes, setPostulantes] = useState([]);
+  const [convocatorias, setConvocatorias] = useState([]); // Nueva variable para las vacantes
+  const [convocatoriaSeleccionada, setConvocatoriaSeleccionada] = useState(''); // Guarda la opción elegida
   const [cargando, setCargando] = useState(true);
   const [subiendo, setSubiendo] = useState(false);
   const [estadoIA, setEstadoIA] = useState('Carga Masiva de CVs');
@@ -13,7 +15,18 @@ export default function Postulantes() {
 
   useEffect(() => {
     obtenerPostulantes();
+    obtenerConvocatorias(); // Cargamos las vacantes al abrir la página
   }, []);
+
+  const obtenerConvocatorias = async () => {
+    try {
+      const { data, error } = await supabase.from('convocatorias').select('id, puesto');
+      if (error) throw error;
+      setConvocatorias(data || []);
+    } catch (error) {
+      console.error('Error al obtener convocatorias:', error.message);
+    }
+  };
 
   const obtenerPostulantes = async () => {
     try {
@@ -32,17 +45,21 @@ export default function Postulantes() {
   };
 
   const handleCargaClick = () => {
-    if (!subiendo) fileInputRef.current.click();
+    if (!subiendo) {
+      // Bloqueamos el clic si no ha elegido una vacante
+      if (!convocatoriaSeleccionada) {
+        alert('⚠️ Por favor, selecciona una vacante en el menú antes de subir los CVs.');
+        return;
+      }
+      fileInputRef.current.click();
+    }
   };
 
-  // --- EL NUEVO CEREBRO AVANZADO DE TU APLICACIÓN ---
   const procesarConIA = async (base64Data) => {
     try {
       const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
-      // Usamos el modelo que descubriste que funciona en tu cuenta
       const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
 
-      // INSTRUCCIONES ESTRICTAS Y DETALLADAS PARA LA IA
       const prompt = `Eres un reclutador experto y analista de Recursos Humanos. Analiza exhaustivamente este CV en formato PDF. 
       Devuelve la respuesta en formato JSON puro, sin comillas invertidas, sin markdown y sin la palabra "json".
       El objeto JSON DEBE tener exactamente esta estructura:
@@ -54,99 +71,102 @@ export default function Postulantes() {
         "anios_experiencia": un número entero con la suma total aproximada de años de experiencia laboral,
         "compatibilidad": un número entero del 0 al 100 evaluando qué tan fuerte es el perfil,
         "resumen": "Un resumen profesional directo de 2 líneas",
-        "analisis_detallado": "Un análisis profundo de 2 o 3 párrafos. Explica detalladamente: 1) Su experiencia laboral (dónde trabajó y cuánto tiempo), 2) Justificación del porcentaje de compatibilidad, y 3) Por qué recomiendas (o no) a este candidato para avanzar en el proceso.",
+        "analisis_detallado": "Análisis profundo. Usa saltos de línea dobles para separar visualmente: 1) Su experiencia laboral, 2) Justificación de compatibilidad, 3) Recomendación final.",
         "estado": "Apto" (si compatibilidad >= 80) o "Observado" (si es menor a 80)
       }`;
 
       const result = await model.generateContent([
         prompt,
-        {
-          inlineData: {
-            data: base64Data,
-            mimeType: 'application/pdf'
-          }
-        }
+        { inlineData: { data: base64Data, mimeType: 'application/pdf' } }
       ]);
 
       let textoRespuesta = result.response.text();
       textoRespuesta = textoRespuesta.replace(/```json/g, '').replace(/```/g, '').trim();
-      
       return JSON.parse(textoRespuesta);
     } catch (error) {
       console.error("Error en IA:", error);
-      throw new Error("La IA no pudo procesar la información de este documento.");
+      throw new Error("La IA no pudo procesar este documento.");
     }
   };
 
-  const subirCV = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
+  // NUEVA FUNCIÓN PARA MÚLTIPLES ARCHIVOS
+  const subirMultiplesCVs = async (event) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
 
-    if (file.type !== 'application/pdf') {
-      alert('Por favor, sube un archivo PDF válido.');
-      return;
+    setSubiendo(true);
+
+    // Bucle para procesar 1 por 1 y no saturar a la IA
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+
+      if (file.type !== 'application/pdf') {
+        console.warn(`El archivo ${file.name} no es PDF. Omitiendo.`);
+        continue;
+      }
+
+      setEstadoIA(`Procesando (${i + 1}/${files.length}): ${file.name}...`);
+
+      try {
+        await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.readAsDataURL(file);
+          
+          reader.onload = async () => {
+            try {
+              const base64Data = reader.result.split(',')[1];
+              const datosIA = await procesarConIA(base64Data);
+
+              const filePath = `cv_docs/${Math.random().toString(36).substring(7)}-${file.name}`;
+              const { error: uploadError } = await supabase.storage.from('cvx').upload(filePath, file);
+              if (uploadError) throw uploadError;
+
+              const { data: urlData } = supabase.storage.from('cvx').getPublicUrl(filePath);
+
+              const analisisCompleto = `
+                <div class="mb-5">
+                  <h4 class="font-bold text-[14px] text-primary uppercase tracking-wider mb-2">Resumen Ejecutivo</h4>
+                  <p class="text-[14px] text-on-surface-variant leading-relaxed">${datosIA.resumen}</p>
+                </div>
+                <div>
+                  <h4 class="font-bold text-[14px] text-primary uppercase tracking-wider mb-2">Análisis Profundo de la IA</h4>
+                  <p class="text-[14px] text-on-surface-variant whitespace-pre-wrap leading-relaxed">${datosIA.analisis_detallado}</p>
+                </div>
+              `;
+
+              const { error: insertError } = await supabase.from('postulantes').insert([{
+                convocatoria_id: convocatoriaSeleccionada, // AHORA USA LA VACANTE ELEGIDA EN EL MENÚ
+                nombre_completo: datosIA.nombre_completo || 'Candidato Desconocido',
+                correo: datosIA.correo || 'No especificado',
+                telefono: datosIA.telefono || 'No especificado',
+                anios_experiencia: datosIA.anios_experiencia || 0,
+                compatibilidad: datosIA.compatibilidad || 70,
+                grado: datosIA.grado || 'No especificado',
+                resumen_ia: analisisCompleto,
+                estado: datosIA.estado || 'Observado',
+                cv_url: urlData.publicUrl
+              }]);
+
+              if (insertError) throw insertError;
+              resolve(); // Termina este CV y pasa al siguiente
+              
+            } catch (err) {
+              console.error(`Error con ${file.name}:`, err);
+              resolve(); // Resuelve incluso si hay error para no detener la cola
+            }
+          };
+        });
+      } catch (error) {
+        console.error(`Fallo crítico con ${file.name}`, error);
+      }
     }
 
-    try {
-      setSubiendo(true);
-      
-      setEstadoIA('Leyendo PDF...');
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      
-      reader.onload = async () => {
-        try {
-          const base64Data = reader.result.split(',')[1];
-          
-          setEstadoIA('IA Analizando Perfil a Profundidad...');
-          const datosIA = await procesarConIA(base64Data);
-
-          setEstadoIA('Guardando en la Nube...');
-          const filePath = `cv_docs/${Math.random().toString(36).substring(7)}-${file.name}`;
-          const { error: uploadError } = await supabase.storage.from('cvx').upload(filePath, file);
-          if (uploadError) throw uploadError;
-
-          const { data: urlData } = supabase.storage.from('cvx').getPublicUrl(filePath);
-
-          setEstadoIA('Registrando Postulante...');
-          
-          // Formateamos el resumen y el análisis para guardarlos juntos en tu columna existente
-          const analisisCompleto = `RESUMEN EJECUTIVO:\n${datosIA.resumen}\n\nANÁLISIS PROFUNDO DE LA IA:\n${datosIA.analisis_detallado}`;
-
-          const { error: insertError } = await supabase.from('postulantes').insert([{
-            convocatoria_id: 1, // Nota: Más adelante haremos que elijas a qué puesto postula
-            nombre_completo: datosIA.nombre_completo || 'Candidato Desconocido',
-            correo: datosIA.correo || 'No especificado',
-            telefono: datosIA.telefono || 'No especificado',
-            anios_experiencia: datosIA.anios_experiencia || 0,
-            compatibilidad: datosIA.compatibilidad || 70,
-            grado: datosIA.grado || 'No especificado',
-            resumen_ia: analisisCompleto,
-            estado: datosIA.estado || 'Observado',
-            cv_url: urlData.publicUrl
-          }]);
-
-          if (insertError) throw insertError;
-
-          alert('¡Candidato analizado profundamente por IA y registrado con éxito!');
-          obtenerPostulantes();
-          
-        } catch (err) {
-          console.error(err);
-          alert('Error en el flujo: ' + err.message);
-        } finally {
-          setSubiendo(false);
-          setEstadoIA('Carga Masiva de CVs');
-          event.target.value = null; 
-        }
-      };
-
-    } catch (error) {
-      console.error(error);
-      alert('Error crítico: ' + error.message);
-      setSubiendo(false);
-      setEstadoIA('Carga Masiva de CVs');
-    }
+    // Una vez que termina el bucle de todos los archivos:
+    setSubiendo(false);
+    setEstadoIA('Carga Masiva de CVs');
+    event.target.value = null; 
+    obtenerPostulantes();
+    alert(`¡Se procesaron los ${files.length} documentos con éxito!`);
   };
 
   return (
@@ -164,27 +184,51 @@ export default function Postulantes() {
       </div>
 
       <div className="grid grid-cols-12 gap-gutter">
-        <div className="col-span-12 xl:col-span-3 h-full">
-          <input type="file" accept=".pdf" ref={fileInputRef} onChange={subirCV} className="hidden" />
+        {/* PANEL IZQUIERDO: SELECCIÓN Y CARGA */}
+        <div className="col-span-12 xl:col-span-3 h-full flex flex-col gap-4">
+          
+          {/* Nuevo Menú Desplegable */}
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 shadow-sm">
+            <label className="block font-label-md text-[12px] font-bold text-primary uppercase tracking-wider mb-2">
+              1. Asignar a Vacante
+            </label>
+            <select
+              value={convocatoriaSeleccionada}
+              onChange={(e) => setConvocatoriaSeleccionada(e.target.value)}
+              disabled={subiendo}
+              className="w-full p-2.5 bg-surface-container rounded-lg border border-outline-variant font-body-sm text-[13px] text-on-surface outline-none focus:border-primary transition-colors disabled:opacity-50"
+            >
+              <option value="">-- Selecciona una opción --</option>
+              {convocatorias.map(conv => (
+                <option key={conv.id} value={conv.id}>{conv.puesto}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Área de Carga (Ahora acepta múltiples archivos) */}
+          <input type="file" accept=".pdf" multiple ref={fileInputRef} onChange={subirMultiplesCVs} className="hidden" />
           <div 
             onClick={handleCargaClick} 
-            className={`bg-surface-container-lowest border-2 border-dashed border-outline-variant rounded-xl p-6 h-full flex flex-col justify-center items-center text-center transition-colors group ${subiendo ? 'opacity-80 cursor-wait bg-surface-container-low' : 'hover:bg-surface-container-low cursor-pointer'}`}
+            className={`bg-surface-container-lowest border-2 border-dashed rounded-xl p-6 flex-1 flex flex-col justify-center items-center text-center transition-colors group 
+            ${!convocatoriaSeleccionada ? 'border-outline-variant/50 bg-surface-container/30 cursor-not-allowed grayscale' : 'border-outline-variant hover:bg-surface-container-low cursor-pointer'} 
+            ${subiendo ? 'opacity-80 cursor-wait bg-surface-container-low' : ''}`}
             style={{ minHeight: '180px' }}
           >
-            <div className="w-12 h-12 bg-surface-container rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+            <div className={`w-12 h-12 bg-surface-container rounded-full flex items-center justify-center mb-4 ${convocatoriaSeleccionada && !subiendo ? 'group-hover:scale-110 transition-transform' : ''}`}>
               {subiendo ? (
                 <span className="material-symbols-outlined text-primary text-[28px] animate-spin">sync</span>
               ) : (
-                <span className="material-symbols-outlined text-primary text-[28px]">auto_awesome</span>
+                <span className={`material-symbols-outlined text-[28px] ${!convocatoriaSeleccionada ? 'text-outline-variant' : 'text-primary'}`}>auto_awesome</span>
               )}
             </div>
-            <h3 className="font-label-md text-[12px] font-bold text-on-surface mb-2">{estadoIA}</h3>
+            <h3 className={`font-label-md text-[12px] font-bold mb-2 ${!convocatoriaSeleccionada ? 'text-outline' : 'text-on-surface'}`}>{estadoIA}</h3>
             <p className="font-body-sm text-[13px] text-outline px-4">
-              {subiendo ? 'La Inteligencia Artificial está analizando la experiencia...' : 'Sube un PDF y la IA extraerá los datos automáticamente.'}
+              {subiendo ? 'La IA está procesando la cola de archivos...' : 'Sube uno o varios PDFs al mismo tiempo.'}
             </p>
           </div>
         </div>
 
+        {/* TABLA DERECHA */}
         <div className="col-span-12 xl:col-span-9 flex flex-col gap-stack-md">
           <div className="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm overflow-hidden">
             <table className="w-full text-left border-collapse">
