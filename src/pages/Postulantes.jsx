@@ -59,19 +59,32 @@ export default function Postulantes() {
       const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
       const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
 
-      const prompt = `Eres un reclutador experto y analista de Recursos Humanos. Analiza exhaustivamente este CV en formato PDF. 
+      const prompt = `Eres un reclutador experto y analista de Recursos Humanos. Analiza exhaustivamente este documento en formato PDF (que puede contener un CV y certificados adjuntos). 
       Devuelve la respuesta en formato JSON puro, sin comillas invertidas, sin markdown y sin la palabra "json".
       El objeto JSON DEBE tener exactamente esta estructura:
       {
         "nombre_completo": "Nombre y apellidos del candidato",
         "correo": "El correo electrónico encontrado (o 'No especificado')",
         "telefono": "El número de teléfono encontrado (o 'No especificado')",
-        "grado": "Título profesional más alto (Ej: Licenciada en Contabilidad)",
+        "grado": "Título profesional más alto",
         "anios_experiencia": un número entero con la suma total aproximada de años de experiencia laboral,
-        "compatibilidad": un número entero del 0 al 100 evaluando qué tan fuerte es el perfil,
+        "compatibilidad": un número entero del 0 al 100,
         "resumen": "Un resumen profesional directo de 2 líneas",
-        "analisis_detallado": "Análisis profundo. Usa saltos de línea dobles para separar visualmente: 1) Su experiencia laboral, 2) Justificación de compatibilidad, 3) Recomendación final.",
-        "estado": "Apto" (si compatibilidad >= 80) o "Observado" (si es menor a 80)
+        "analisis_detallado": "Análisis profundo de su experiencia.",
+        "estado": "Apto" o "Observado",
+        "capacitaciones": [
+          {
+            "nombre_curso": "Nombre de la capacitación o congreso",
+            "institucion": "Entidad que lo emite",
+            "firmas_visuales": [
+              {
+                "firmante": "Nombre exacto de la persona que firma",
+                "autoridad": "Entidad certificadora o rol (Ej: RENIEC, Rector, etc.)",
+                "fecha": "Fecha de la firma si aparece, o 'No especificada'"
+              }
+            ]
+          }
+        ]
       }`;
 
       const result = await model.generateContent([
@@ -120,6 +133,79 @@ export default function Postulantes() {
 
               const { data: urlData } = supabase.storage.from('cvx').getPublicUrl(filePath);
 
+              // 1. Armamos primero la sección visual de las capacitaciones y firmas
+              let htmlCapacitaciones = '';
+              if (datosIA.capacitaciones && datosIA.capacitaciones.length > 0) {
+                htmlCapacitaciones = `
+                  <div class="mt-8 border-t border-outline-variant/40 pt-6">
+                    <h4 class="font-bold text-[14px] text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
+                      <span class="material-symbols-outlined text-[18px]">workspace_premium</span> 
+                      Capacitaciones y Validaciones Visuales
+                    </h4>
+                    <div class="flex flex-col gap-4">
+                      ${datosIA.capacitaciones.map(cap => `
+                        <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 shadow-sm relative overflow-hidden">
+                          <!-- Borde verde lateral -->
+                          <div class="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>
+                          
+                          <div class="flex flex-col sm:flex-row justify-between items-start gap-4 mb-3">
+                            <div>
+                              <h5 class="font-bold text-[15px] text-on-surface leading-tight mb-1">${cap.nombre_curso}</h5>
+                              <p class="font-body-sm text-[13px] text-on-surface-variant flex items-center gap-1">
+                                <span class="material-symbols-outlined text-[14px]">account_balance</span> ${cap.institucion}
+                              </p>
+                            </div>
+                            
+                            <!-- Etiqueta de validación -->
+                            ${cap.firmas_visuales && cap.firmas_visuales.length > 0 ? `
+                              <span class="shrink-0 bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1 shadow-sm">
+                                <span class="material-symbols-outlined text-[14px]">verified_user</span> 
+                                Firma Visual Detectada
+                              </span>
+                            ` : `
+                              <span class="shrink-0 bg-surface-container-high text-on-surface-variant border border-outline-variant text-[11px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
+                                <span class="material-symbols-outlined text-[14px]">info</span> 
+                                Sin Firma Visible
+                              </span>
+                            `}
+                          </div>
+
+                          <!-- Lista de las firmas encontradas en el documento -->
+                          ${cap.firmas_visuales && cap.firmas_visuales.length > 0 ? `
+                            <div class="bg-surface-container p-3 rounded-lg border border-outline-variant/30 mb-3">
+                              <p class="font-label-md text-[11px] text-outline uppercase tracking-wider mb-2">Firmantes Detectados (Lectura de Texto):</p>
+                              <ul class="space-y-1.5">
+                                ${cap.firmas_visuales.map(firma => `
+                                  <li class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-[13px]">
+                                    <span class="font-semibold text-on-surface flex items-center gap-1">
+                                      <span class="material-symbols-outlined text-primary text-[14px]">draw</span> 
+                                      ${firma.firmante}
+                                    </span>
+                                    <span class="hidden sm:inline text-outline-variant">•</span>
+                                    <span class="text-on-surface-variant font-data-mono text-[12px]">${firma.autoridad}</span>
+                                    <span class="hidden sm:inline text-outline-variant">•</span>
+                                    <span class="text-outline text-[12px]">${firma.fecha}</span>
+                                  </li>
+                                `).join('')}
+                              </ul>
+                            </div>
+                          ` : ''}
+
+                          <!-- Botón para ver el PDF original -->
+                          <div class="flex justify-end mt-2">
+                            <a href="${urlData.publicUrl}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-secondary-container hover:bg-secondary-container/80 text-on-secondary-container rounded-md font-label-md text-[12px] font-bold transition-colors shadow-sm">
+                              <span class="material-symbols-outlined text-[16px]">plagiarism</span>
+                              Auditar Documento Original
+                            </a>
+                          </div>
+                        </div>
+                      `).join('')}
+                    </div>
+                  </div>
+                `;
+              }
+
+              // 2. Aquí rearmamos tu variable sumando la nueva sección al final
               const analisisCompleto = `
                 <div class="mb-5">
                   <h4 class="font-bold text-[14px] text-primary uppercase tracking-wider mb-2">Resumen Ejecutivo</h4>
@@ -129,6 +215,7 @@ export default function Postulantes() {
                   <h4 class="font-bold text-[14px] text-primary uppercase tracking-wider mb-2">Análisis Profundo de la IA</h4>
                   <p class="text-[14px] text-on-surface-variant whitespace-pre-wrap leading-relaxed">${datosIA.analisis_detallado}</p>
                 </div>
+                ${htmlCapacitaciones}
               `;
 
               const { error: insertError } = await supabase.from('postulantes').insert([{
