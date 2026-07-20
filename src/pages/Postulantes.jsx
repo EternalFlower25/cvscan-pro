@@ -57,7 +57,7 @@ export default function Postulantes() {
   const procesarConIA = async (base64Data) => {
     try {
       const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
-      const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
       const prompt = `Eres un reclutador experto y analista de Recursos Humanos. Analiza exhaustivamente este documento en formato PDF (que puede contener un CV y certificados adjuntos). 
       Devuelve la respuesta en formato JSON puro, sin comillas invertidas, sin markdown y sin la palabra "json".
