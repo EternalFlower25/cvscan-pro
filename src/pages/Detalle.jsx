@@ -40,6 +40,24 @@ export default function Detalle() {
       navigate('/postulantes');
     }
   };
+  const handleMoverEntrevista = async () => {
+    if (window.confirm('¿Estás seguro de mover a este candidato a la etapa de Entrevistas?')) {
+      try {
+        const { error } = await supabase
+          .from('postulantes')
+          .update({ etapa: 'Entrevista' })
+          .eq('id', id);
+
+        if (error) throw error;
+
+        alert('¡Candidato movido a Entrevistas exitosamente!');
+        navigate('/postulantes'); 
+      } catch (error) {
+        console.error('Error al actualizar etapa:', error.message);
+        alert('Hubo un error al mover al candidato.');
+      }
+    }
+  };
 
   if (cargando) return <div className="p-8 text-center">Cargando datos del postulante...</div>;
   if (!postulante) return <div className="p-8 text-center">Postulante no encontrado.</div>;
@@ -67,7 +85,7 @@ export default function Detalle() {
             <span className="material-symbols-outlined text-sm">close</span>
             <span className="font-label-md text-[12px] font-bold">Rechazar</span>
           </button>
-          <button onClick={() => showToast('Postulante movido a Entrevista')} className="flex items-center gap-2 px-4 py-2 bg-primary rounded text-on-primary hover:bg-primary/90 transition-colors cursor-pointer">
+          <button onClick={handleMoverEntrevista} className="flex items-center gap-2 px-4 py-2 bg-primary rounded text-on-primary hover:bg-primary/90 transition-colors cursor-pointer">
             <span className="material-symbols-outlined text-sm">check_circle</span>
             <span className="font-label-md text-[12px] font-bold">Mover a Entrevista</span>
           </button>
