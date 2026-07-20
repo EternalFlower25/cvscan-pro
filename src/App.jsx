@@ -4,6 +4,7 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Convocatorias from './pages/Convocatorias';
 import Postulantes from './pages/Postulantes';
+import Entrevistas from './pages/Entrevistas';
 import Reportes from './pages/Reportes';
 import Detalle from './pages/Detalle';
 import NuevoPostulante from './pages/NuevoPostulante'; // <-- ESTA IMPORTACIÓN FALTABA
@@ -22,6 +23,7 @@ function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/convocatorias" element={<Convocatorias />} />
           <Route path="/postulantes" element={<Postulantes />} />
+          <Route path="/entrevistas" element={<Entrevistas />} />
           <Route path="/reportes" element={<Reportes />} />
           <Route path="/nuevo-postulante" element={<NuevoPostulante />} />
           <Route path="/nueva-convocatoria" element={<NuevaConvocatoria />} />

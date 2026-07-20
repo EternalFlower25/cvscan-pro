@@ -7,6 +7,7 @@ export default function Layout() {
     { path: '/dashboard', icon: 'dashboard', label: 'Dashboard' },
     { path: '/convocatorias', icon: 'work', label: 'Convocatorias' },
     { path: '/postulantes', icon: 'groups', label: 'Postulantes' },
+    { path: '/entrevistas', icon: 'forum', label: 'Entrevistas' },
     { path: '/reportes', icon: 'assessment', label: 'Reportes' },
   ];
 
